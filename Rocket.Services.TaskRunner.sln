@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29424.173
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rocket.Libraries.TaskRunner", "..\Rocket.Libraries.TaskRunner\Rocket.Libraries.TaskRunner.csproj", "{509D01F3-54E5-4C5B-8656-8D70839E7340}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rocket.Libraries.TaskRunnerTests", "Rocket.Libraries.TaskRunnerTests\Rocket.Libraries.TaskRunnerTests.csproj", "{BD5FDDDB-AAF3-4ADD-AD41-A5D1B1E92B69}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{509D01F3-54E5-4C5B-8656-8D70839E7340}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{509D01F3-54E5-4C5B-8656-8D70839E7340}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{509D01F3-54E5-4C5B-8656-8D70839E7340}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{509D01F3-54E5-4C5B-8656-8D70839E7340}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD5FDDDB-AAF3-4ADD-AD41-A5D1B1E92B69}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD5FDDDB-AAF3-4ADD-AD41-A5D1B1E92B69}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD5FDDDB-AAF3-4ADD-AD41-A5D1B1E92B69}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD5FDDDB-AAF3-4ADD-AD41-A5D1B1E92B69}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {EF50FC54-6CD2-4E39-8F86-CAC06F14D00E}
+	EndGlobalSection
+EndGlobal
