@@ -12,8 +12,8 @@ namespace Rocket.Libraries.TaskRunnerTests.Conditions
     public class PreconditionEvaluatorTests
     {
         [Theory]
-        [InlineData(true, false)]
-        [InlineData(false, true)]
+        [InlineData(false, false)]
+        [InlineData(true, true)]
         public async Task PreConditionsFilterCorrectly(bool preconditionResult, bool errorMessageShouldBeEmpty)
         {
             var taskDefinition = new TaskDefinition<Guid>

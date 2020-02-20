@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Rocket.Libraries.TaskRunner\Rocket.Libraries.TaskRunner.csproj" />
+    <ProjectReference Include="..\Rocket.Libraries.TaskRunner\Rocket.Libraries.TaskRunner.csproj" />
   </ItemGroup>
 
 </Project>
