@@ -4,8 +4,8 @@ using System.Text;
 
 namespace Rocket.Libraries.TaskRunner
 {
-    public abstract class ModelBase<TIdentifier>
+    public interface IModelBase<TIdentifier>
     {
-        public TIdentifier Id { get; set; }
+        TIdentifier Id { get; set; }
     }
 }

@@ -9,8 +9,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
 {
     public class SessionRunResult<TIdentifier>
     {
-        public ImmutableList<History<TIdentifier>> Histories { get; set; } = ImmutableList<History<TIdentifier>>.Empty;
+        public ImmutableList<IHistory<TIdentifier>> Histories { get; set; } = ImmutableList<IHistory<TIdentifier>>.Empty;
 
-        public ImmutableList<Schedule<TIdentifier>> Schedules { get; set; } = ImmutableList<Schedule<TIdentifier>>.Empty;
+        public ImmutableList<ISchedule<TIdentifier>> Schedules { get; set; } = ImmutableList<ISchedule<TIdentifier>>.Empty;
     }
 }

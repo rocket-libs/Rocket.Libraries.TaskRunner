@@ -8,6 +8,6 @@ namespace Rocket.Libraries.TaskRunner.Histories
 {
     public interface IHistoryWriter<TIdentifier> : IDisposable
     {
-        Task WriteAsync(ImmutableList<History<TIdentifier>> histories);
+        Task WriteAsync(ImmutableList<IHistory<TIdentifier>> histories);
     }
 }

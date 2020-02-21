@@ -14,7 +14,7 @@ namespace Rocket.Libraries.TaskRunner.Conditions
         {
         }
 
-        public async Task<string> GetFailingPrecondition(TaskDefinition<TIdentifier> taskDefinition, ImmutableList<TaskPrecondition<TIdentifier>> preconditions)
+        public async Task<string> GetFailingPrecondition(ITaskDefinition<TIdentifier> taskDefinition, ImmutableList<TaskPrecondition<TIdentifier>> preconditions)
         {
             if (preconditions == null || preconditions.Count == 0)
             {
@@ -26,7 +26,7 @@ namespace Rocket.Libraries.TaskRunner.Conditions
             }
         }
 
-        private async Task<string> GetEvaluationResult(TaskDefinition<TIdentifier> taskDefinition, ImmutableList<TaskPrecondition<TIdentifier>> preconditions)
+        private async Task<string> GetEvaluationResult(ITaskDefinition<TIdentifier> taskDefinition, ImmutableList<TaskPrecondition<TIdentifier>> preconditions)
         {
             var taskPreconditions = preconditions.Where(candidatePrecondition => candidatePrecondition.TaskName.Equals(taskDefinition.Name, StringComparison.InvariantCulture))
                         .ToImmutableList();
@@ -41,7 +41,7 @@ namespace Rocket.Libraries.TaskRunner.Conditions
             }
         }
 
-        private async Task<string> GetFirstFailingPreconditionAsync(TaskDefinition<TIdentifier> taskDefinition, ImmutableList<TaskPrecondition<TIdentifier>> taskPreconditions)
+        private async Task<string> GetFirstFailingPreconditionAsync(ITaskDefinition<TIdentifier> taskDefinition, ImmutableList<TaskPrecondition<TIdentifier>> taskPreconditions)
         {
             foreach (var singlePrecondition in taskPreconditions)
             {

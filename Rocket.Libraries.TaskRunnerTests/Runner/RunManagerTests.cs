@@ -1,9 +1,14 @@
-﻿using Moq;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using Rocket.Libraries.TaskRunner.Conditions;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Runner;
 using Rocket.Libraries.TaskRunner.Schedules;
+using Rocket.Libraries.TaskRunner.ScopedServices;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
+using Rocket.Libraries.TaskRunnerTests.Histories;
+using Rocket.Libraries.TaskRunnerTests.Schedules;
+using Rocket.Libraries.TaskRunnerTests.TaskDefinitions;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -27,13 +32,16 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
             var scheduleWriter = new Mock<IScheduleWriter<Guid>>();
             var preconditionReader = new Mock<IPreconditionReader<Guid>>();
             var dueTasksFilter = new Mock<IDueTasksFilter<Guid>>();
-            var targetTaskDefinitionList = ImmutableList<TaskDefinition<Guid>>.Empty.Add(new TaskDefinition<Guid>
+            var historyReader = new Mock<IHistoryReader<Guid>>();
+            var serviceScopeFactory = new Mock<IServiceScopeFactory>();
+
+            var targetTaskDefinitionList = ImmutableList<ITaskDefinition<Guid>>.Empty.Add(new TaskDefinition<Guid>
             {
                 Id = taskDefinitionId
             });
 
             scheduleReader.Setup(a => a.GetAllAsync())
-                .ReturnsAsync(ImmutableList<Schedule<Guid>>.Empty.Add(new Schedule<Guid>
+                .ReturnsAsync(ImmutableList<ISchedule<Guid>>.Empty.Add(new Schedule<Guid>
                 {
                     LastRun = DateTime.Now.AddDays(-1),
                     TaskDefinitionId = taskDefinitionId,
@@ -42,15 +50,18 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
             taskDefinitionReader.Setup(a => a.GetByIdsAsync(It.IsAny<ImmutableList<Guid>>()))
                 .ReturnsAsync(targetTaskDefinitionList);
 
-            runner.Setup(a => a.RunAsync(It.IsAny<TaskDefinition<Guid>>()))
+            runner.Setup(a => a.RunAsync(It.IsAny<ITaskDefinition<Guid>>()))
                 .ReturnsAsync(new SingleTaskRunResult
                 {
                     Remarks = "Blah",
                     Succeeded = true
                 });
 
-            dueTasksFilter.Setup(a => a.GetWithOnlyDueTasks(It.IsAny<ImmutableList<TaskDefinition<Guid>>>(), It.IsAny<ImmutableList<Schedule<Guid>>>()))
+            dueTasksFilter.Setup(a => a.GetWithOnlyDueTasks(It.IsAny<ImmutableList<ITaskDefinition<Guid>>>(), It.IsAny<ImmutableList<ISchedule<Guid>>>()))
                 .Returns(targetTaskDefinitionList);
+
+            historyReader.Setup(a => a.GetNew())
+                .Returns(new History<Guid>());
 
             var runManager = new RunManager<Guid>(
                 scheduleReader.Object,
@@ -59,10 +70,12 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
                 historyWriter.Object,
                 scheduleWriter.Object,
                 preconditionReader.Object,
-                dueTasksFilter.Object
+                dueTasksFilter.Object,
+                historyReader.Object,
+                serviceScopeFactory.Object
                 );
 
-            var result = await runManager.RunAsync();
+            var result = await runManager.RunAsync(new ScopedServiceProvider());
             Assert.True(result.Histories != null);
             Assert.True(result.Histories.First().Status == RunHistoryStatuses.CompletedSuccessfully);
         }

@@ -18,12 +18,12 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.dateTimeProvider = dateTimeProvider;
         }
 
-        public ImmutableList<TaskDefinition<TIdentifier>> GetWithOnlyDueTasks(ImmutableList<TaskDefinition<TIdentifier>> candidateTasks, ImmutableList<Schedule<TIdentifier>> schedules)
+        public ImmutableList<ITaskDefinition<TIdentifier>> GetWithOnlyDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
         {
             var referenceTime = dateTimeProvider.Now;
-            var dueTasks = ImmutableList<TaskDefinition<TIdentifier>>.Empty;
+            var dueTasks = ImmutableList<ITaskDefinition<TIdentifier>>.Empty;
 
-            Func<TaskDefinition<TIdentifier>, Schedule<TIdentifier>, bool> taskIsDue = (taskDefinition, schedule) =>
+            Func<ITaskDefinition<TIdentifier>, ISchedule<TIdentifier>, bool> taskIsDue = (taskDefinition, schedule) =>
         {
             var dueAt = schedule.LastRun.Add(taskDefinition.Interval);
             var isDue = dueAt <= referenceTime;

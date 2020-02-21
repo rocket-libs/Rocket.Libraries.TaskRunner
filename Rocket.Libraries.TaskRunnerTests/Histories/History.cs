@@ -1,12 +1,13 @@
-﻿using System;
+﻿using Rocket.Libraries.TaskRunner.Histories;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Rocket.Libraries.TaskRunner.Histories
+namespace Rocket.Libraries.TaskRunnerTests.Histories
 {
-    public class History<TIdentifier> : ModelBase<TIdentifier>
+    internal class History<T> : IHistory<T>
     {
-        public TIdentifier TaskDefinitionId { get; set; }
+        public T TaskDefinitionId { get; set; }
 
         public DateTime StartTime { get; set; }
 
@@ -15,5 +16,7 @@ namespace Rocket.Libraries.TaskRunner.Histories
         public string Status { get; set; }
 
         public string Remarks { get; set; }
+
+        public T Id { get; set; }
     }
 }

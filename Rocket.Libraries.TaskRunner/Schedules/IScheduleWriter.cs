@@ -8,6 +8,6 @@ namespace Rocket.Libraries.TaskRunner.Schedules
 {
     public interface IScheduleWriter<TIdentifier>
     {
-        Task WriteAsync(ImmutableList<Schedule<TIdentifier>> schedules);
+        Task WriteAsync(ImmutableList<ISchedule<TIdentifier>> schedules);
     }
 }

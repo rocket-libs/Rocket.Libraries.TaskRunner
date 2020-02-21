@@ -1,5 +1,6 @@
 ﻿using Rocket.Libraries.TaskRunner.Conditions;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
+using Rocket.Libraries.TaskRunnerTests.TaskDefinitions;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;

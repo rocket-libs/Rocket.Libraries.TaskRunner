@@ -8,6 +8,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
 {
     public interface IRunner<TIdentifier> : IDisposable
     {
-        Task<SingleTaskRunResult> RunAsync(TaskDefinition<TIdentifier> taskDefinition);
+        Task<SingleTaskRunResult> RunAsync(ITaskDefinition<TIdentifier> taskDefinition);
     }
 }

@@ -3,6 +3,8 @@ using Rocket.Libraries.TaskRunner.Runner;
 using Rocket.Libraries.TaskRunner.Schedules;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
 using Rocket.Libraries.TaskRunner.Utility;
+using Rocket.Libraries.TaskRunnerTests.Schedules;
+using Rocket.Libraries.TaskRunnerTests.TaskDefinitions;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -26,14 +28,14 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
             datetimeProvider.Setup(a => a.Now)
                 .Returns(referenceDate);
 
-            var candidateTasks = ImmutableList<TaskDefinition<long>>.Empty
+            var candidateTasks = ImmutableList<ITaskDefinition<long>>.Empty
                 .Add(new TaskDefinition<long>
                 {
                     Interval = TimeSpan.FromMilliseconds(0),
                     Id = taskDefinitionId
                 });
 
-            var schedules = ImmutableList<Schedule<long>>.Empty
+            var schedules = ImmutableList<ISchedule<long>>.Empty
                 .Add(new Schedule<long>
                 {
                     LastRun = referenceDate.AddMilliseconds(milliSecondsAway),

@@ -7,6 +7,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
 {
     public interface IDueTasksFilter<TIdentifier> : IDisposable
     {
-        ImmutableList<TaskDefinition<TIdentifier>> GetWithOnlyDueTasks(ImmutableList<TaskDefinition<TIdentifier>> candidateTasks, ImmutableList<Schedule<TIdentifier>> schedules);
+        ImmutableList<ITaskDefinition<TIdentifier>> GetWithOnlyDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules);
     }
 }

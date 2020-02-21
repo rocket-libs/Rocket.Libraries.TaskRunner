@@ -10,7 +10,7 @@ namespace Rocket.Libraries.TaskRunner.Conditions
     {
         public string TaskName { get; set; }
 
-        public Func<TaskDefinition<TIdentifier>, Task<bool>> Condition { get; set; }
+        public Func<ITaskDefinition<TIdentifier>, Task<bool>> Condition { get; set; }
 
         public string DisplayLabel { get; set; }
     }
