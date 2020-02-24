@@ -1,7 +1,5 @@
 ﻿using Rocket.Libraries.TaskRunner.Histories;
 using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Rocket.Libraries.TaskRunnerTests.Histories
 {

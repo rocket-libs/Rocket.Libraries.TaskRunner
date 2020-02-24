@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Rocket.Libraries.TaskRunner.TaskDefinitions;
 
 namespace Rocket.Libraries.TaskRunner.Histories
 {
-    public interface IHistoryReader<TIdentifier> : IInstantiator<IHistory<TIdentifier>>
+    public interface IHistoryReader<TIdentifier> : IInstantiator<IHistory<TIdentifier>>, IScopedServiceAccessor
     {
     }
 }

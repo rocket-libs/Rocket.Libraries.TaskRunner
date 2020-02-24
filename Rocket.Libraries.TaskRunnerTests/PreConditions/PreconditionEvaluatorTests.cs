@@ -1,14 +1,11 @@
-﻿using Rocket.Libraries.TaskRunner.Conditions;
-using Rocket.Libraries.TaskRunner.TaskDefinitions;
+﻿using Rocket.Libraries.TaskRunner.TaskPreconditions;
 using Rocket.Libraries.TaskRunnerTests.TaskDefinitions;
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Rocket.Libraries.TaskRunnerTests.Conditions
+namespace Rocket.Libraries.TaskRunnerTests.PreConditions
 {
     public class PreconditionEvaluatorTests
     {
@@ -17,17 +14,19 @@ namespace Rocket.Libraries.TaskRunnerTests.Conditions
         [InlineData(true, true)]
         public async Task PreConditionsFilterCorrectly(bool preconditionResult, bool errorMessageShouldBeEmpty)
         {
+            const string taskName = "TaskName";
+
             var taskDefinition = new TaskDefinition<Guid>
             {
                 Id = Guid.NewGuid(),
-                Name = "Some Name"
+                Name = taskName
             };
 
-            var preconditions = ImmutableList<TaskPrecondition<Guid>>.Empty.Add(new TaskPrecondition<Guid>
+            var preconditions = ImmutableList<TaskPrecondition<Guid>>.Empty.Add(new DummyPrecondition<Guid>
             {
                 Condition = async (a) => await Task.Run(() => preconditionResult),
                 DisplayLabel = "Blah",
-                TaskName = taskDefinition.Name
+                TaskName = taskName,
             });
 
             var preconditionEvaluator = new PreconditionEvaluator<Guid>();

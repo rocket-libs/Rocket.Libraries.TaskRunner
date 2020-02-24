@@ -1,19 +1,17 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using Rocket.Libraries.TaskRunner.Conditions;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Runner;
 using Rocket.Libraries.TaskRunner.Schedules;
 using Rocket.Libraries.TaskRunner.ScopedServices;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
+using Rocket.Libraries.TaskRunner.TaskPreconditions;
 using Rocket.Libraries.TaskRunnerTests.Histories;
 using Rocket.Libraries.TaskRunnerTests.Schedules;
 using Rocket.Libraries.TaskRunnerTests.TaskDefinitions;
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -63,7 +61,7 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
             historyReader.Setup(a => a.GetNew())
                 .Returns(new History<Guid>());
 
-            var runManager = new RunManager<Guid>(
+            var runManager = new TestRunManager(
                 scheduleReader.Object,
                 taskDefinitionReader.Object,
                 runner.Object,
@@ -74,10 +72,10 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
                 historyReader.Object,
                 serviceScopeFactory.Object
                 );
-
-            var result = await runManager.RunAsync(new ScopedServiceProvider());
+            throw new Exception();
+            /*var result = await runManager.RunAsync(new ScopedServiceProvider());
             Assert.True(result.Histories != null);
-            Assert.True(result.Histories.First().Status == RunHistoryStatuses.CompletedSuccessfully);
+            Assert.True(result.Histories.First().Status == RunHistoryStatuses.CompletedSuccessfully);*/
         }
     }
 }

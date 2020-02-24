@@ -1,12 +1,10 @@
 ﻿using Rocket.Libraries.TaskRunner.TaskDefinitions;
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
-namespace Rocket.Libraries.TaskRunner.Conditions
+namespace Rocket.Libraries.TaskRunner.TaskPreconditions
 {
     public class PreconditionEvaluator<TIdentifier> : IDisposable
     {

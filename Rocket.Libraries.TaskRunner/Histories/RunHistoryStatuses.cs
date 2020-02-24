@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Rocket.Libraries.TaskRunner.Histories
+﻿namespace Rocket.Libraries.TaskRunner.Histories
 {
     public class RunHistoryStatuses
     {

@@ -1,9 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Rocket.Libraries.TaskRunner.Runner;
+using Rocket.Libraries.TaskRunner.ScopedServices;
 using Rocket.Libraries.TaskRunner.Utility;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Rocket.Libraries.TaskRunner
 {
@@ -12,6 +10,7 @@ namespace Rocket.Libraries.TaskRunner
         public static IServiceCollection RegisterInbuiltTaskRunnerServices<TIdentifier>(this IServiceCollection services)
         {
             services
+                .AddScoped<IScopedServiceProvider, ScopedServiceProvider>()
                 .AddTransient<IDueTasksFilter<TIdentifier>, DueTasksFilter<TIdentifier>>()
                 .AddTransient<IDateTimeProvider, DateTimeProvider>();
             return services;

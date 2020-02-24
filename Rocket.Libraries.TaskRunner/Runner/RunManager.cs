@@ -1,22 +1,22 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Rocket.Libraries.TaskRunner.Conditions;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Schedules;
 using Rocket.Libraries.TaskRunner.ScopedServices;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
+using Rocket.Libraries.TaskRunner.TaskPreconditions;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Rocket.Libraries.TaskRunner.Runner
 {
-    public class RunManager<TIdentifier> : IRunManager<TIdentifier>
+    public abstract class RunManager<TIdentifier> : IRunManager<TIdentifier>
     {
+        private static SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1);
+
         private readonly IScheduleReader<TIdentifier> scheduleReader;
 
         private readonly ITaskDefinitionReader<TIdentifier> taskDefinitionReader;
@@ -59,13 +59,23 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.serviceScopeFactory = serviceScopeFactory;
         }
 
-        public async Task<SessionRunResult<TIdentifier>> RunAsync(IScopedServiceProvider scopedServiceProvider)
+        public async Task RunAsync(IScopedServiceProvider scopedServiceProvider)
         {
-            var schedules = await GetSchedulesAsync(scopedServiceProvider);
-            var candidateTasks = await GetCandidateTasks(schedules, scopedServiceProvider);
-            var dueTasks = GetWithOnlyDueTasks(candidateTasks, schedules);
-            return await RunDueTasks(dueTasks, schedules);
+            try
+            {
+                var schedules = await GetSchedulesAsync(scopedServiceProvider);
+                var candidateTasks = await GetCandidateTasks(schedules, scopedServiceProvider);
+                var dueTasks = GetWithOnlyDueTasks(candidateTasks, schedules);
+                var result = await RunDueTasks(dueTasks, schedules);
+                await OnRunCompletedAsync(true, scopedServiceProvider, result);
+            }
+            catch
+            {
+                await OnRunCompletedAsync(false, scopedServiceProvider, null);
+            }
         }
+
+        public abstract Task OnRunCompletedAsync(bool succeeded, IScopedServiceProvider scopedServiceProvider, SessionRunResult<TIdentifier> sessionRunResult);
 
         private async Task<SessionRunResult<TIdentifier>> RunDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
         {
@@ -120,7 +130,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
         {
             using (scheduleReader)
             {
-                scheduleReader.ScopedServiceProvider = scopedServiceProvider;
                 return await scheduleReader.GetAllAsync();
             }
         }
@@ -137,7 +146,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
                 var ids = schedules.Select(singleSchedule => singleSchedule.TaskDefinitionId).ToImmutableList();
                 using (taskDefinitionReader)
                 {
-                    taskDefinitionReader.ScopedServiceProvider = scopedServiceProvider;
                     return await taskDefinitionReader.GetByIdsAsync(ids);
                 }
             }
@@ -170,12 +178,30 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private async Task WorkAsync()
         {
-            using (var scope = serviceScopeFactory.CreateScope())
+            try
             {
-                var scopedServiceProvider = scope.ServiceProvider.GetService<IScopedServiceProvider>();
-                scopedServiceProvider.Scope = scope;
-                await RunAsync(scopedServiceProvider);
+                await semaphoreSlim.WaitAsync();
+                using (var scope = serviceScopeFactory.CreateScope())
+                {
+                    var scopedServiceProvider = scope.ServiceProvider.GetService<IScopedServiceProvider>();
+                    scopedServiceProvider.Scope = scope;
+                    SetupScopedServiceReader(scopedServiceProvider);
+                    await RunAsync(scopedServiceProvider);
+                }
             }
+            finally
+            {
+                semaphoreSlim.Release();
+            }
+        }
+
+        private void SetupScopedServiceReader(IScopedServiceProvider scopedServiceProvider)
+        {
+            taskDefinitionReader.ScopedServiceProvider = scopedServiceProvider;
+            scheduleReader.ScopedServiceProvider = scopedServiceProvider;
+            scheduleWriter.ScopedServiceProvider = scopedServiceProvider;
+            historyReader.ScopedServiceProvider = scopedServiceProvider;
+            historyWriter.ScopedServiceProvider = scopedServiceProvider;
         }
     }
 }

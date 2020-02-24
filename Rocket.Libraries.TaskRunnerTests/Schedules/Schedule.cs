@@ -1,7 +1,5 @@
 ﻿using Rocket.Libraries.TaskRunner.Schedules;
 using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Rocket.Libraries.TaskRunnerTests.Schedules
 {

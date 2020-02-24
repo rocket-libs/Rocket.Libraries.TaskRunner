@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Text;
+﻿using System.Collections.Immutable;
 using System.Threading.Tasks;
 
-namespace Rocket.Libraries.TaskRunner.Conditions
+namespace Rocket.Libraries.TaskRunner.TaskPreconditions
 {
     public interface IPreconditionReader<TIdentifier>
     {
