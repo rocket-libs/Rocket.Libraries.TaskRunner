@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Runner;
@@ -32,6 +33,8 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
             var dueTasksFilter = new Mock<IDueTasksFilter<Guid>>();
             var historyReader = new Mock<IHistoryReader<Guid>>();
             var serviceScopeFactory = new Mock<IServiceScopeFactory>();
+            var scopedServiceProvider = new Mock<IScopedServiceProvider>();
+            var logger = new Mock<Logger<TestRunManager>>();
 
             var targetTaskDefinitionList = ImmutableList<ITaskDefinition<Guid>>.Empty.Add(new TaskDefinition<Guid>
             {
@@ -48,7 +51,7 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
             taskDefinitionReader.Setup(a => a.GetByIdsAsync(It.IsAny<ImmutableList<Guid>>()))
                 .ReturnsAsync(targetTaskDefinitionList);
 
-            runner.Setup(a => a.RunAsync(It.IsAny<ITaskDefinition<Guid>>()))
+            runner.Setup(a => a.RunAsync(It.IsAny<IScopedServiceProvider>(), It.IsAny<ITaskDefinition<Guid>>()))
                 .ReturnsAsync(new SingleTaskRunResult
                 {
                     Remarks = "Blah",
@@ -70,12 +73,12 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
                 preconditionReader.Object,
                 dueTasksFilter.Object,
                 historyReader.Object,
-                serviceScopeFactory.Object
+                serviceScopeFactory.Object,
+                 logger.Object
                 );
-            throw new Exception();
-            /*var result = await runManager.RunAsync(new ScopedServiceProvider());
-            Assert.True(result.Histories != null);
-            Assert.True(result.Histories.First().Status == RunHistoryStatuses.CompletedSuccessfully);*/
+            await runManager.RunAsync(new ScopedServiceProvider());
+            Assert.True(runManager.SessionRunResult.Histories != null);
+            Assert.True(runManager.SessionRunResult.Histories.First().Status == RunHistoryStatuses.CompletedSuccessfully);
         }
     }
 }

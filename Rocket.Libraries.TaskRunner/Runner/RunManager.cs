@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Schedules;
 using Rocket.Libraries.TaskRunner.ScopedServices;
@@ -37,6 +38,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private Timer timer;
 
+        public ILogger<RunManager<TIdentifier>> Logger { get; }
+
         public RunManager(
             IScheduleReader<TIdentifier> scheduleReader,
             ITaskDefinitionReader<TIdentifier> taskDefinitionReader,
@@ -46,7 +49,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
             IPreconditionReader<TIdentifier> preconditionReader,
             IDueTasksFilter<TIdentifier> dueTasksFilter,
             IHistoryReader<TIdentifier> historyReader,
-            IServiceScopeFactory serviceScopeFactory)
+            IServiceScopeFactory serviceScopeFactory,
+             ILogger<RunManager<TIdentifier>> logger)
         {
             this.scheduleReader = scheduleReader;
             this.taskDefinitionReader = taskDefinitionReader;
@@ -57,27 +61,41 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.dueTasksFilter = dueTasksFilter;
             this.historyReader = historyReader;
             this.serviceScopeFactory = serviceScopeFactory;
+            Logger = logger;
         }
 
         public async Task RunAsync(IScopedServiceProvider scopedServiceProvider)
         {
             try
             {
+                await OnRunStartAsync();
                 var schedules = await GetSchedulesAsync(scopedServiceProvider);
                 var candidateTasks = await GetCandidateTasks(schedules, scopedServiceProvider);
                 var dueTasks = GetWithOnlyDueTasks(candidateTasks, schedules);
-                var result = await RunDueTasks(dueTasks, schedules);
-                await OnRunCompletedAsync(true, scopedServiceProvider, result);
+                var result = await RunDueTasks(scopedServiceProvider, dueTasks, schedules);
+                await OnRunCompletedAsync(true, scopedServiceProvider, result, null);
             }
-            catch
+            catch (Exception e)
             {
-                await OnRunCompletedAsync(false, scopedServiceProvider, null);
+                await OnRunCompletedAsync(false, scopedServiceProvider, null, e);
             }
         }
 
-        public abstract Task OnRunCompletedAsync(bool succeeded, IScopedServiceProvider scopedServiceProvider, SessionRunResult<TIdentifier> sessionRunResult);
+        public virtual Task OnRunStartAsync()
+        {
+            return Task.CompletedTask;
+        }
 
-        private async Task<SessionRunResult<TIdentifier>> RunDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
+        public virtual Task OnRunCompletedAsync(bool succeeded, IScopedServiceProvider scopedServiceProvider, SessionRunResult<TIdentifier> sessionRunResult, Exception exception)
+        {
+            _ = succeeded;
+            _ = scopedServiceProvider;
+            _ = sessionRunResult;
+            _ = exception;
+            return Task.CompletedTask;
+        }
+
+        private async Task<SessionRunResult<TIdentifier>> RunDueTasks(IScopedServiceProvider scopedServiceProvider, ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
         {
             using (runner)
             {
@@ -88,7 +106,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
                     foreach (var singleTaskDefinition in candidateTasks)
                     {
                         var startTime = DateTime.Now;
-                        await RunSingleTask(singleTaskDefinition, preconditionEvaluator, schedules, preconditions, sessionRunResult, startTime);
+                        await RunSingleTask(scopedServiceProvider, singleTaskDefinition, preconditionEvaluator, schedules, preconditions, sessionRunResult, startTime);
                     }
 
                     await historyWriter.WriteAsync(sessionRunResult.Histories);
@@ -98,12 +116,13 @@ namespace Rocket.Libraries.TaskRunner.Runner
             }
         }
 
-        private async Task RunSingleTask(ITaskDefinition<TIdentifier> singleTaskDefinition, PreconditionEvaluator<TIdentifier> preconditionEvaluator, ImmutableList<ISchedule<TIdentifier>> schedules, ImmutableList<TaskPrecondition<TIdentifier>> preconditions, SessionRunResult<TIdentifier> sessionRunResult, DateTime startTime)
+        private async Task RunSingleTask(IScopedServiceProvider scopedServiceProvider, ITaskDefinition<TIdentifier> singleTaskDefinition, PreconditionEvaluator<TIdentifier> preconditionEvaluator, ImmutableList<ISchedule<TIdentifier>> schedules, ImmutableList<TaskPrecondition<TIdentifier>> preconditions, SessionRunResult<TIdentifier> sessionRunResult, DateTime startTime)
         {
             var taskSchedule = scheduleReader.GetNew();
             var history = historyReader.GetNew();
             history.StartTime = startTime;
             history.TaskDefinitionId = singleTaskDefinition.Id;
+            var runResult = default(SingleTaskRunResult);
 
             var failingPrecondition = await preconditionEvaluator.GetFailingPrecondition(singleTaskDefinition, preconditions);
             var allPreconditionsPassed = string.IsNullOrEmpty(failingPrecondition);
@@ -111,7 +130,18 @@ namespace Rocket.Libraries.TaskRunner.Runner
             if (allPreconditionsPassed)
             {
                 taskSchedule = schedules.Single(candidateSchedule => EqualityComparer<TIdentifier>.Default.Equals(candidateSchedule.TaskDefinitionId, singleTaskDefinition.Id));
-                var runResult = await runner.RunAsync(singleTaskDefinition);
+                try
+                {
+                    runResult = await runner.RunAsync(scopedServiceProvider, singleTaskDefinition);
+                }
+                catch (Exception e)
+                {
+                    runResult = new SingleTaskRunResult
+                    {
+                        Succeeded = false,
+                        Remarks = e.Message,
+                    };
+                }
                 history.Remarks = runResult.Remarks;
                 history.Status = runResult.Succeeded ? RunHistoryStatuses.CompletedSuccessfully : RunHistoryStatuses.Failed;
             }

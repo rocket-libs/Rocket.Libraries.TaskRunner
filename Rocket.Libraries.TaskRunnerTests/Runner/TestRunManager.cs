@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Runner;
 using Rocket.Libraries.TaskRunner.Schedules;
@@ -14,12 +15,16 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
 {
     internal class TestRunManager : RunManager<Guid>
     {
-        public TestRunManager(IScheduleReader<Guid> scheduleReader, ITaskDefinitionReader<Guid> taskDefinitionReader, IRunner<Guid> runner, IHistoryWriter<Guid> historyWriter, IScheduleWriter<Guid> scheduleWriter, IPreconditionReader<Guid> preconditionReader, IDueTasksFilter<Guid> dueTasksFilter, IHistoryReader<Guid> historyReader, IServiceScopeFactory serviceScopeFactory) : base(scheduleReader, taskDefinitionReader, runner, historyWriter, scheduleWriter, preconditionReader, dueTasksFilter, historyReader, serviceScopeFactory)
+        public SessionRunResult<Guid> SessionRunResult { get; set; }
+
+        public TestRunManager(IScheduleReader<Guid> scheduleReader, ITaskDefinitionReader<Guid> taskDefinitionReader, IRunner<Guid> runner, IHistoryWriter<Guid> historyWriter, IScheduleWriter<Guid> scheduleWriter, IPreconditionReader<Guid> preconditionReader, IDueTasksFilter<Guid> dueTasksFilter, IHistoryReader<Guid> historyReader, IServiceScopeFactory serviceScopeFactory, ILogger<RunManager<Guid>> logger)
+            : base(scheduleReader, taskDefinitionReader, runner, historyWriter, scheduleWriter, preconditionReader, dueTasksFilter, historyReader, serviceScopeFactory, logger)
         {
         }
 
-        public override Task OnRunCompletedAsync(bool succeeded, IScopedServiceProvider scopedServiceProvider, SessionRunResult<Guid> sessionRunResult)
+        public override Task OnRunCompletedAsync(bool succeeded, IScopedServiceProvider scopedServiceProvider, SessionRunResult<Guid> sessionRunResult, Exception exception)
         {
+            SessionRunResult = sessionRunResult;
             return Task.CompletedTask;
         }
     }
