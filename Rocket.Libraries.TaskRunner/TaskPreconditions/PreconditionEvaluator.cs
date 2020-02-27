@@ -43,7 +43,7 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions
         {
             foreach (var singlePrecondition in taskPreconditions)
             {
-                var passed = await singlePrecondition.Condition(taskDefinition);
+                var passed = await singlePrecondition.PassesAsync(taskDefinition);
                 if (!passed)
                 {
                     return singlePrecondition.DisplayLabel;

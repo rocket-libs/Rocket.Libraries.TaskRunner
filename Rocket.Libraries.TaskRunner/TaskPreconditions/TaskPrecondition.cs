@@ -8,7 +8,7 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions
     {
         public abstract string TaskName { get; set; }
 
-        public abstract Func<ITaskDefinition<TIdentifier>, Task<bool>> Condition { get; set; }
+        public abstract Func<ITaskDefinition<TIdentifier>, Task<bool>> PassesAsync { get; set; }
 
         public abstract string DisplayLabel { get; set; }
     }
