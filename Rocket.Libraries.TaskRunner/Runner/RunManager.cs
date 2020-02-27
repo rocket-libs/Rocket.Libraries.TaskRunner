@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.CircuitBreaker;
+using Rocket.Libraries.TaskRunner.Configuration;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates;
@@ -71,8 +73,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
             ITaskDefinitionStateReader<TIdentifier> taskDefinitionStateReader,
             ITaskDefinitionStateWriter<TIdentifier> taskDefinitionStateWriter,
             IFaultHandler<TIdentifier> faultHandler,
-            IFaultReporter<TIdentifier> faultReporter,
-            double circuitBreakerDelayMilliSeconds)
+            IFaultReporter<TIdentifier> faultReporter)
         {
             this.scheduleReader = scheduleReader;
             this.taskDefinitionReader = taskDefinitionReader;
@@ -89,9 +90,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.taskDefinitionStateWriter = taskDefinitionStateWriter;
             this.faultHandler = faultHandler;
             this.faultReporter = faultReporter;
-            circuitBreaker = Policy
-                    .Handle<Exception>()
-                    .CircuitBreakerAsync(1, TimeSpan.FromMilliseconds(circuitBreakerDelayMilliSeconds));
         }
 
         public async Task RunAsync(IScopedServiceProvider scopedServiceProvider)
@@ -246,8 +244,9 @@ namespace Rocket.Libraries.TaskRunner.Runner
             try
             {
                 await semaphoreSlim.WaitAsync();
+                InitializePollyIfRequired();
                 await circuitBreaker
-                    .ExecuteAsync(() => RunInCircuitAsync());
+                .ExecuteAsync(() => RunInCircuitAsync());
             }
             catch { }
             finally
@@ -273,6 +272,20 @@ namespace Rocket.Libraries.TaskRunner.Runner
                 await faultReporter.ReportShutdownAsync(e);
                 throw new CriticalFaultException("Error occured in a point during which it is not possible to determine errant task.", e);
                 throw;
+            }
+        }
+
+        private void InitializePollyIfRequired()
+        {
+            if (circuitBreaker == null)
+            {
+                using (var scope = serviceScopeFactory.CreateScope())
+                {
+                    var configurationProvider = scope.ServiceProvider.GetService<IConfigurationProvider>();
+                    circuitBreaker = Policy
+                            .Handle<Exception>()
+                            .CircuitBreakerAsync(1, TimeSpan.FromMilliseconds(configurationProvider.TaskRunnerSettings.CircuitBreakerDelayMilliSeconds));
+                }
             }
         }
 
