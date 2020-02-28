@@ -24,7 +24,7 @@ namespace Rocket.Libraries.TaskRunnerTests.PreConditions
 
             var preconditions = ImmutableList<TaskPrecondition<Guid>>.Empty.Add(new DummyPrecondition<Guid>
             {
-                Condition = async (a) => await Task.Run(() => preconditionResult),
+                PassesAsync = async (a) => await Task.Run(() => preconditionResult),
                 DisplayLabel = "Blah",
                 TaskName = taskName,
             });

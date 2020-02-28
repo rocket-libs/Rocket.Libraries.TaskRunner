@@ -1,6 +1,12 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Polly;
+using Polly.CircuitBreaker;
+using Rocket.Libraries.TaskRunner.Configuration;
 using Rocket.Libraries.TaskRunner.Histories;
+using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
+using Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates;
 using Rocket.Libraries.TaskRunner.Schedules;
 using Rocket.Libraries.TaskRunner.ScopedServices;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
@@ -36,6 +42,18 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private readonly IServiceScopeFactory serviceScopeFactory;
 
+        private readonly IInbuiltTaskPreconditionsProvider<TIdentifier> inbuiltTaskPreconditionsProvider;
+
+        private readonly ITaskDefinitionStateReader<TIdentifier> taskDefinitionStateReader;
+
+        private readonly ITaskDefinitionStateWriter<TIdentifier> taskDefinitionStateWriter;
+
+        private readonly IFaultHandler<TIdentifier> faultHandler;
+
+        private readonly IFaultReporter<TIdentifier> faultReporter;
+
+        private static AsyncCircuitBreakerPolicy circuitBreaker;
+
         private Timer timer;
 
         public ILogger<RunManager<TIdentifier>> Logger { get; }
@@ -50,7 +68,12 @@ namespace Rocket.Libraries.TaskRunner.Runner
             IDueTasksFilter<TIdentifier> dueTasksFilter,
             IHistoryReader<TIdentifier> historyReader,
             IServiceScopeFactory serviceScopeFactory,
-             ILogger<RunManager<TIdentifier>> logger)
+            ILogger<RunManager<TIdentifier>> logger,
+            IInbuiltTaskPreconditionsProvider<TIdentifier> inbuiltTaskPreconditionsProvider,
+            ITaskDefinitionStateReader<TIdentifier> taskDefinitionStateReader,
+            ITaskDefinitionStateWriter<TIdentifier> taskDefinitionStateWriter,
+            IFaultHandler<TIdentifier> faultHandler,
+            IFaultReporter<TIdentifier> faultReporter)
         {
             this.scheduleReader = scheduleReader;
             this.taskDefinitionReader = taskDefinitionReader;
@@ -62,6 +85,11 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.historyReader = historyReader;
             this.serviceScopeFactory = serviceScopeFactory;
             Logger = logger;
+            this.inbuiltTaskPreconditionsProvider = inbuiltTaskPreconditionsProvider;
+            this.taskDefinitionStateReader = taskDefinitionStateReader;
+            this.taskDefinitionStateWriter = taskDefinitionStateWriter;
+            this.faultHandler = faultHandler;
+            this.faultReporter = faultReporter;
         }
 
         public async Task RunAsync(IScopedServiceProvider scopedServiceProvider)
@@ -78,6 +106,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
             catch (Exception e)
             {
                 await OnRunCompletedAsync(false, scopedServiceProvider, null, e);
+                throw;
             }
         }
 
@@ -101,8 +130,11 @@ namespace Rocket.Libraries.TaskRunner.Runner
             {
                 using (var preconditionEvaluator = new PreconditionEvaluator<TIdentifier>())
                 {
+                    var taskDefinitionStates = await taskDefinitionStateReader.GetByTaskDefinitionIds(candidateTasks.Select(a => a.Id).ToImmutableList());
                     var sessionRunResult = new SessionRunResult<TIdentifier>();
                     var preconditions = await preconditionReader.GetByTaskNameAsync(candidateTasks.Select(a => a.Name).ToImmutableList());
+                    var inBuiltPreconditions = inbuiltTaskPreconditionsProvider.GetInBuiltPreconditions(candidateTasks, taskDefinitionStates);
+                    preconditions = preconditions.AddRange(inBuiltPreconditions);
                     foreach (var singleTaskDefinition in candidateTasks)
                     {
                         var startTime = DateTime.Now;
@@ -136,6 +168,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
                 }
                 catch (Exception e)
                 {
+                    await faultHandler.HandleAsync(singleTaskDefinition, e);
                     runResult = new SingleTaskRunResult
                     {
                         Succeeded = false,
@@ -211,6 +244,21 @@ namespace Rocket.Libraries.TaskRunner.Runner
             try
             {
                 await semaphoreSlim.WaitAsync();
+                InitializePollyIfRequired();
+                await circuitBreaker
+                .ExecuteAsync(() => RunInCircuitAsync());
+            }
+            catch { }
+            finally
+            {
+                semaphoreSlim.Release();
+            }
+        }
+
+        private async Task RunInCircuitAsync()
+        {
+            try
+            {
                 using (var scope = serviceScopeFactory.CreateScope())
                 {
                     var scopedServiceProvider = scope.ServiceProvider.GetService<IScopedServiceProvider>();
@@ -219,9 +267,25 @@ namespace Rocket.Libraries.TaskRunner.Runner
                     await RunAsync(scopedServiceProvider);
                 }
             }
-            finally
+            catch (Exception e)
             {
-                semaphoreSlim.Release();
+                await faultReporter.ReportShutdownAsync(e);
+                throw new CriticalFaultException("Error occured in a point during which it is not possible to determine errant task.", e);
+                throw;
+            }
+        }
+
+        private void InitializePollyIfRequired()
+        {
+            if (circuitBreaker == null)
+            {
+                using (var scope = serviceScopeFactory.CreateScope())
+                {
+                    var configurationProvider = scope.ServiceProvider.GetService<IConfigurationProvider>();
+                    circuitBreaker = Policy
+                            .Handle<Exception>()
+                            .CircuitBreakerAsync(1, TimeSpan.FromMilliseconds(configurationProvider.TaskRunnerSettings.CircuitBreakerDelayMilliSeconds));
+                }
             }
         }
 
@@ -232,6 +296,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
             scheduleWriter.ScopedServiceProvider = scopedServiceProvider;
             historyReader.ScopedServiceProvider = scopedServiceProvider;
             historyWriter.ScopedServiceProvider = scopedServiceProvider;
+            taskDefinitionStateReader.ScopedServiceProvider = scopedServiceProvider;
+            taskDefinitionStateWriter.ScopedServiceProvider = scopedServiceProvider;
         }
     }
 }
