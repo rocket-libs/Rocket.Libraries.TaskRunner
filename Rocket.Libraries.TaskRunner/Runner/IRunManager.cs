@@ -5,7 +5,7 @@ using Rocket.Libraries.TaskRunner.ScopedServices;
 
 namespace Rocket.Libraries.TaskRunner.Runner
 {
-    public interface IRunManager<TIdentifier> : IHostedService, IDisposable
+    public interface IRunManager<TIdentifier> : IDisposable
     {
         Task RunAsync(IScopedServiceProvider scopedServiceProvider);
     }

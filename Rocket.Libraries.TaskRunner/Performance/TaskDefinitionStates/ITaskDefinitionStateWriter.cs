@@ -1,9 +1,8 @@
-﻿using Rocket.Libraries.TaskRunner.TaskDefinitions;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates
 {
-    public interface ITaskDefinitionStateWriter<TIdentifier> : IScopedServiceAccessor
+    public interface ITaskDefinitionStateWriter<TIdentifier> : IScopedServiceConsumer
     {
         Task WriteAsync(ITaskDefinitionState<TIdentifier> taskDefinitionState);
     }

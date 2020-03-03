@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Polly;
 using Polly.CircuitBreaker;
 using Rocket.Libraries.TaskRunner.Configuration;
@@ -9,6 +9,7 @@ using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates;
 using Rocket.Libraries.TaskRunner.Schedules;
 using Rocket.Libraries.TaskRunner.ScopedServices;
+using Rocket.Libraries.TaskRunner.ServiceDetails;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
 using Rocket.Libraries.TaskRunner.TaskPreconditions;
 using System;
@@ -20,7 +21,7 @@ using System.Threading.Tasks;
 
 namespace Rocket.Libraries.TaskRunner.Runner
 {
-    public abstract class RunManager<TIdentifier> : IRunManager<TIdentifier>
+    public class RunManager<TIdentifier> : IRunManager<TIdentifier>
     {
         private static SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1);
 
@@ -261,10 +262,10 @@ namespace Rocket.Libraries.TaskRunner.Runner
             {
                 using (var scope = serviceScopeFactory.CreateScope())
                 {
-                    var scopedServiceProvider = scope.ServiceProvider.GetService<IScopedServiceProvider>();
+                    /*var scopedServiceProvider = scope.ServiceProvider.GetService<IScopedServiceProvider>();
                     scopedServiceProvider.Scope = scope;
                     SetupScopedServiceReader(scopedServiceProvider);
-                    await RunAsync(scopedServiceProvider);
+                    await RunAsync(scopedServiceProvider);*
                 }
             }
             catch (Exception e)
@@ -281,15 +282,31 @@ namespace Rocket.Libraries.TaskRunner.Runner
             {
                 using (var scope = serviceScopeFactory.CreateScope())
                 {
+                    ServiceDetailTracker.WriteStatus(false, DateTime.Now, "Normal start");
                     var configurationProvider = scope.ServiceProvider.GetService<IConfigurationProvider>();
                     circuitBreaker = Policy
                             .Handle<Exception>()
-                            .CircuitBreakerAsync(1, TimeSpan.FromMilliseconds(configurationProvider.TaskRunnerSettings.CircuitBreakerDelayMilliSeconds));
+                            .CircuitBreakerAsync(
+                                1,
+                                TimeSpan.FromMilliseconds(configurationProvider.TaskRunnerSettings.CircuitBreakerDelayMilliSeconds),
+                                (exception, timeSpan, context) =>
+                                {
+                                    _ = timeSpan;
+                                    _ = context;
+                                    var message = $"Failure reason: '{exception.Message}'";
+                                    ServiceDetailTracker.WriteStatus(false, DateTime.Now, message);
+                                },
+                                (context) =>
+                                {
+                                    _ = context;
+                                    ServiceDetailTracker.WriteStatus(true, DateTime.Now, "Resumed after failure");
+                                }
+                             );
                 }
             }
         }
 
-        private void SetupScopedServiceReader(IScopedServiceProvider scopedServiceProvider)
+        /*private void SetupScopedServiceReader(IScopedServiceProvider scopedServiceProvider)
         {
             taskDefinitionReader.ScopedServiceProvider = scopedServiceProvider;
             scheduleReader.ScopedServiceProvider = scopedServiceProvider;
@@ -298,6 +315,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
             historyWriter.ScopedServiceProvider = scopedServiceProvider;
             taskDefinitionStateReader.ScopedServiceProvider = scopedServiceProvider;
             taskDefinitionStateWriter.ScopedServiceProvider = scopedServiceProvider;
-        }
-    }
-}
+        }*/
+                }
+            }
