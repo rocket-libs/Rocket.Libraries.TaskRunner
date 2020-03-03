@@ -2,7 +2,7 @@
 
 namespace Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates
 {
-    public interface ITaskDefinitionStateWriter<TIdentifier> : IScopedServiceConsumer
+    public interface ITaskDefinitionStateWriter<TIdentifier>
     {
         Task WriteAsync(ITaskDefinitionState<TIdentifier> taskDefinitionState);
     }

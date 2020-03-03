@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Rocket.Libraries.TaskRunner.Schedules
 {
-    public interface IScheduleReader<TIdentifier> : IDisposable, IInstantiator<ISchedule<TIdentifier>>, IScopedServiceConsumer
+    public interface IScheduleReader<TIdentifier> : IDisposable, IInstantiator<ISchedule<TIdentifier>>
     {
         Task<ImmutableList<ISchedule<TIdentifier>>> GetAllAsync();
     }

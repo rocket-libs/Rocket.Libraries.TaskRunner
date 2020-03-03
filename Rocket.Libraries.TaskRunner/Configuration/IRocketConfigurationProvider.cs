@@ -1,6 +1,6 @@
 ﻿namespace Rocket.Libraries.TaskRunner.Configuration
 {
-    public interface IConfigurationProvider
+    public interface IRocketConfigurationProvider
     {
         TaskRunnerSettings TaskRunnerSettings { get; }
     }

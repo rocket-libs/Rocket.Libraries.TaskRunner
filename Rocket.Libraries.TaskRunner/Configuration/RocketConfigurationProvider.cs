@@ -2,11 +2,11 @@
 
 namespace Rocket.Libraries.TaskRunner.Configuration
 {
-    public class ConfigurationProvider : IConfigurationProvider
+    public class RocketConfigurationProvider : IRocketConfigurationProvider
     {
         public TaskRunnerSettings TaskRunnerSettings { get; }
 
-        public ConfigurationProvider(IOptionsSnapshot<TaskRunnerSettings> taskRunnerSettings)
+        public RocketConfigurationProvider(IOptionsSnapshot<TaskRunnerSettings> taskRunnerSettings)
         {
             TaskRunnerSettings = taskRunnerSettings.Get(ServiceRegistrationHelper.TaskRunnerSettingsName);
         }

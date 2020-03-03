@@ -1,15 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Polly;
-using Polly.CircuitBreaker;
-using Rocket.Libraries.TaskRunner.Configuration;
 using Rocket.Libraries.TaskRunner.Histories;
 using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates;
 using Rocket.Libraries.TaskRunner.Schedules;
-using Rocket.Libraries.TaskRunner.ScopedServices;
-using Rocket.Libraries.TaskRunner.ServiceDetails;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
 using Rocket.Libraries.TaskRunner.TaskPreconditions;
 using System;
@@ -53,10 +47,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private readonly IFaultReporter<TIdentifier> faultReporter;
 
-        private static AsyncCircuitBreakerPolicy circuitBreaker;
-
-        private Timer timer;
-
         public ILogger<RunManager<TIdentifier>> Logger { get; }
 
         public RunManager(
@@ -93,20 +83,20 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.faultReporter = faultReporter;
         }
 
-        public async Task RunAsync(IScopedServiceProvider scopedServiceProvider)
+        public async Task RunAsync()
         {
             try
             {
                 await OnRunStartAsync();
-                var schedules = await GetSchedulesAsync(scopedServiceProvider);
-                var candidateTasks = await GetCandidateTasks(schedules, scopedServiceProvider);
+                var schedules = await GetSchedulesAsync();
+                var candidateTasks = await GetCandidateTasks(schedules);
                 var dueTasks = GetWithOnlyDueTasks(candidateTasks, schedules);
-                var result = await RunDueTasks(scopedServiceProvider, dueTasks, schedules);
-                await OnRunCompletedAsync(true, scopedServiceProvider, result, null);
+                var result = await RunDueTasks(dueTasks, schedules);
+                await OnRunCompletedAsync(true, result, null);
             }
             catch (Exception e)
             {
-                await OnRunCompletedAsync(false, scopedServiceProvider, null, e);
+                await OnRunCompletedAsync(false, null, e);
                 throw;
             }
         }
@@ -116,16 +106,15 @@ namespace Rocket.Libraries.TaskRunner.Runner
             return Task.CompletedTask;
         }
 
-        public virtual Task OnRunCompletedAsync(bool succeeded, IScopedServiceProvider scopedServiceProvider, SessionRunResult<TIdentifier> sessionRunResult, Exception exception)
+        public virtual Task OnRunCompletedAsync(bool succeeded, SessionRunResult<TIdentifier> sessionRunResult, Exception exception)
         {
             _ = succeeded;
-            _ = scopedServiceProvider;
             _ = sessionRunResult;
             _ = exception;
             return Task.CompletedTask;
         }
 
-        private async Task<SessionRunResult<TIdentifier>> RunDueTasks(IScopedServiceProvider scopedServiceProvider, ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
+        private async Task<SessionRunResult<TIdentifier>> RunDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
         {
             using (runner)
             {
@@ -139,7 +128,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
                     foreach (var singleTaskDefinition in candidateTasks)
                     {
                         var startTime = DateTime.Now;
-                        await RunSingleTask(scopedServiceProvider, singleTaskDefinition, preconditionEvaluator, schedules, preconditions, sessionRunResult, startTime);
+                        await RunSingleTask(singleTaskDefinition, preconditionEvaluator, schedules, preconditions, sessionRunResult, startTime);
                     }
 
                     await historyWriter.WriteAsync(sessionRunResult.Histories);
@@ -149,7 +138,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
             }
         }
 
-        private async Task RunSingleTask(IScopedServiceProvider scopedServiceProvider, ITaskDefinition<TIdentifier> singleTaskDefinition, PreconditionEvaluator<TIdentifier> preconditionEvaluator, ImmutableList<ISchedule<TIdentifier>> schedules, ImmutableList<TaskPrecondition<TIdentifier>> preconditions, SessionRunResult<TIdentifier> sessionRunResult, DateTime startTime)
+        private async Task RunSingleTask(ITaskDefinition<TIdentifier> singleTaskDefinition, PreconditionEvaluator<TIdentifier> preconditionEvaluator, ImmutableList<ISchedule<TIdentifier>> schedules, ImmutableList<TaskPrecondition<TIdentifier>> preconditions, SessionRunResult<TIdentifier> sessionRunResult, DateTime startTime)
         {
             var taskSchedule = scheduleReader.GetNew();
             var history = historyReader.GetNew();
@@ -165,7 +154,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
                 taskSchedule = schedules.Single(candidateSchedule => EqualityComparer<TIdentifier>.Default.Equals(candidateSchedule.TaskDefinitionId, singleTaskDefinition.Id));
                 try
                 {
-                    runResult = await runner.RunAsync(scopedServiceProvider, singleTaskDefinition);
+                    runResult = await runner.RunAsync(singleTaskDefinition);
                 }
                 catch (Exception e)
                 {
@@ -190,7 +179,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
             sessionRunResult.Schedules = sessionRunResult.Schedules.Add(taskSchedule);
         }
 
-        private async Task<ImmutableList<ISchedule<TIdentifier>>> GetSchedulesAsync(IScopedServiceProvider scopedServiceProvider)
+        private async Task<ImmutableList<ISchedule<TIdentifier>>> GetSchedulesAsync()
         {
             using (scheduleReader)
             {
@@ -198,7 +187,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
             }
         }
 
-        private async Task<ImmutableList<ITaskDefinition<TIdentifier>>> GetCandidateTasks(ImmutableList<ISchedule<TIdentifier>> schedules, IScopedServiceProvider scopedServiceProvider)
+        private async Task<ImmutableList<ITaskDefinition<TIdentifier>>> GetCandidateTasks(ImmutableList<ISchedule<TIdentifier>> schedules)
         {
             var noScheduledTasks = schedules == null || schedules.Count == 0;
             if (noScheduledTasks)
@@ -223,98 +212,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
             }
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
-            timer = new Timer(async (a) => await WorkAsync(), null, TimeSpan.Zero, TimeSpan.FromMinutes(1));
-            return Task.CompletedTask;
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            timer?.Change(Timeout.Infinite, 0);
-            return Task.CompletedTask;
-        }
-
         public void Dispose()
         {
-            timer?.Dispose();
         }
-
-        private async Task WorkAsync()
-        {
-            try
-            {
-                await semaphoreSlim.WaitAsync();
-                InitializePollyIfRequired();
-                await circuitBreaker
-                .ExecuteAsync(() => RunInCircuitAsync());
-            }
-            catch { }
-            finally
-            {
-                semaphoreSlim.Release();
-            }
-        }
-
-        private async Task RunInCircuitAsync()
-        {
-            try
-            {
-                using (var scope = serviceScopeFactory.CreateScope())
-                {
-                    /*var scopedServiceProvider = scope.ServiceProvider.GetService<IScopedServiceProvider>();
-                    scopedServiceProvider.Scope = scope;
-                    SetupScopedServiceReader(scopedServiceProvider);
-                    await RunAsync(scopedServiceProvider);*
-                }
-            }
-            catch (Exception e)
-            {
-                await faultReporter.ReportShutdownAsync(e);
-                throw new CriticalFaultException("Error occured in a point during which it is not possible to determine errant task.", e);
-                throw;
-            }
-        }
-
-        private void InitializePollyIfRequired()
-        {
-            if (circuitBreaker == null)
-            {
-                using (var scope = serviceScopeFactory.CreateScope())
-                {
-                    ServiceDetailTracker.WriteStatus(false, DateTime.Now, "Normal start");
-                    var configurationProvider = scope.ServiceProvider.GetService<IConfigurationProvider>();
-                    circuitBreaker = Policy
-                            .Handle<Exception>()
-                            .CircuitBreakerAsync(
-                                1,
-                                TimeSpan.FromMilliseconds(configurationProvider.TaskRunnerSettings.CircuitBreakerDelayMilliSeconds),
-                                (exception, timeSpan, context) =>
-                                {
-                                    _ = timeSpan;
-                                    _ = context;
-                                    var message = $"Failure reason: '{exception.Message}'";
-                                    ServiceDetailTracker.WriteStatus(false, DateTime.Now, message);
-                                },
-                                (context) =>
-                                {
-                                    _ = context;
-                                    ServiceDetailTracker.WriteStatus(true, DateTime.Now, "Resumed after failure");
-                                }
-                             );
-                }
-            }
-        }
-
-        /*private void SetupScopedServiceReader(IScopedServiceProvider scopedServiceProvider)
-        {
-            taskDefinitionReader.ScopedServiceProvider = scopedServiceProvider;
-            scheduleReader.ScopedServiceProvider = scopedServiceProvider;
-            scheduleWriter.ScopedServiceProvider = scopedServiceProvider;
-            historyReader.ScopedServiceProvider = scopedServiceProvider;
-            historyWriter.ScopedServiceProvider = scopedServiceProvider;
-            taskDefinitionStateReader.ScopedServiceProvider = scopedServiceProvider;
-            taskDefinitionStateWriter.ScopedServiceProvider = scopedServiceProvider;
-        }*/
-                }
-            }
+    }
+}
