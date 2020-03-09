@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Rocket.Libraries.TaskRunner.Configuration;
+using Rocket.Libraries.TaskRunner.OnDemandQueuing;
 using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.Runner;
 using Rocket.Libraries.TaskRunner.TaskPreconditions;
@@ -14,6 +15,7 @@ namespace Rocket.Libraries.TaskRunner
         public static IServiceCollection RegisterInbuiltServices<TIdentifier>(this IServiceCollection services, TaskRunnerSettings taskRunnerSettings)
         {
             services
+                .AddSingleton<IOnDemandQueueManager<TIdentifier>, OnDemandQueueManager<TIdentifier>>()
                 .AddScoped<IRocketConfigurationProvider, RocketConfigurationProvider>()
                 .AddTransient<IDueTasksFilter<TIdentifier>, DueTasksFilter<TIdentifier>>()
                 .AddTransient<IDateTimeProvider, DateTimeProvider>()

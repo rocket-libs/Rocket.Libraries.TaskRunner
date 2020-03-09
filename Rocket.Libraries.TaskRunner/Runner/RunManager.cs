@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Rocket.Libraries.TaskRunner.Histories;
+using Rocket.Libraries.TaskRunner.OnDemandQueuing;
 using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates;
 using Rocket.Libraries.TaskRunner.Schedules;
@@ -47,6 +48,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private readonly IFaultReporter<TIdentifier> faultReporter;
 
+        private readonly IOnDemandQueueManager<TIdentifier> onDemandQueueManager;
+
         public ILogger<RunManager<TIdentifier>> Logger { get; }
 
         public RunManager(
@@ -64,7 +67,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
             ITaskDefinitionStateReader<TIdentifier> taskDefinitionStateReader,
             ITaskDefinitionStateWriter<TIdentifier> taskDefinitionStateWriter,
             IFaultHandler<TIdentifier> faultHandler,
-            IFaultReporter<TIdentifier> faultReporter)
+            IFaultReporter<TIdentifier> faultReporter,
+            IOnDemandQueueManager<TIdentifier> onDemandQueueManager)
         {
             this.scheduleReader = scheduleReader;
             this.taskDefinitionReader = taskDefinitionReader;
@@ -81,6 +85,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.taskDefinitionStateWriter = taskDefinitionStateWriter;
             this.faultHandler = faultHandler;
             this.faultReporter = faultReporter;
+            this.onDemandQueueManager = onDemandQueueManager;
         }
 
         public async Task RunAsync()
@@ -140,7 +145,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private async Task RunSingleTask(ITaskDefinition<TIdentifier> singleTaskDefinition, PreconditionEvaluator<TIdentifier> preconditionEvaluator, ImmutableList<ISchedule<TIdentifier>> schedules, ImmutableList<TaskPrecondition<TIdentifier>> preconditions, SessionRunResult<TIdentifier> sessionRunResult, DateTime startTime)
         {
-            var taskSchedule = scheduleReader.GetNew();
+            var taskSchedule = schedules.Single(candidateSchedule => EqualityComparer<TIdentifier>.Default.Equals(candidateSchedule.TaskDefinitionId, singleTaskDefinition.Id));
             var history = historyReader.GetNew();
             history.StartTime = startTime;
             history.TaskDefinitionId = singleTaskDefinition.Id;
@@ -151,7 +156,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
             if (allPreconditionsPassed)
             {
-                taskSchedule = schedules.Single(candidateSchedule => EqualityComparer<TIdentifier>.Default.Equals(candidateSchedule.TaskDefinitionId, singleTaskDefinition.Id));
                 try
                 {
                     runResult = await runner.RunAsync(singleTaskDefinition);
@@ -164,6 +168,13 @@ namespace Rocket.Libraries.TaskRunner.Runner
                         Succeeded = false,
                         Remarks = e.Message,
                     };
+                }
+                finally
+                {
+                    if (taskSchedule.IsOnDemand)
+                    {
+                        onDemandQueueManager.DeQueue(taskSchedule.TaskDefinitionId);
+                    }
                 }
                 history.Remarks = runResult.Remarks;
                 history.Status = runResult.Succeeded ? RunHistoryStatuses.CompletedSuccessfully : RunHistoryStatuses.Failed;
@@ -183,7 +194,9 @@ namespace Rocket.Libraries.TaskRunner.Runner
         {
             using (scheduleReader)
             {
-                return await scheduleReader.GetAllAsync();
+                var queuedTaskDefinitionIds = onDemandQueueManager.Queued; // This caching is important so we are sure we work with the same set of task definition ids within this scope.
+                var schedules = await scheduleReader.GetAllAsync(queuedTaskDefinitionIds);
+                return onDemandQueueManager.GetOnDemandSchedulesFlagged(schedules, queuedTaskDefinitionIds);
             }
         }
 

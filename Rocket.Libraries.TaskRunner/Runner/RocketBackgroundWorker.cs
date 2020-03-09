@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Polly;
 using Polly.CircuitBreaker;
 using Rocket.Libraries.TaskRunner.Configuration;
+using Rocket.Libraries.TaskRunner.OnDemandQueuing;
 using Rocket.Libraries.TaskRunner.ServiceDetails;
 using System;
 using System.Threading;
@@ -18,11 +19,16 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private readonly IServiceScopeFactory serviceScopeFactory;
 
+        private readonly IOnDemandQueueManager<TIdentifier> onDemandQueueManager;
+
         private Timer timer;
 
-        public RocketBackgroundWorker(IServiceScopeFactory serviceScopeFactory)
+        public RocketBackgroundWorker(
+            IServiceScopeFactory serviceScopeFactory,
+            IOnDemandQueueManager<TIdentifier> onDemandQueueManager)
         {
             this.serviceScopeFactory = serviceScopeFactory;
+            this.onDemandQueueManager = onDemandQueueManager;
         }
 
         public override void Dispose()
@@ -78,15 +84,16 @@ namespace Rocket.Libraries.TaskRunner.Runner
                             TimeSpan.FromMilliseconds(configurationProvider.TaskRunnerSettings.CircuitBreakerDelayMilliSeconds),
                             (exception, timeSpan, context) =>
                             {
+                                onDemandQueueManager.DeQueueAll();
                                 _ = timeSpan;
                                 _ = context;
                                 var message = $"Failure reason: '{exception.Message}'";
-                                ServiceDetailTracker.WriteStatus(false, DateTime.Now, message);
+                                ServiceDetailTracker.WriteStatus(true, DateTime.Now, message);
                             },
                             (context) =>
                             {
                                 _ = context;
-                                ServiceDetailTracker.WriteStatus(true, DateTime.Now, "Resumed after failure");
+                                ServiceDetailTracker.WriteStatus(false, DateTime.Now, "Resumed after failure");
                             }
                          );
             }
