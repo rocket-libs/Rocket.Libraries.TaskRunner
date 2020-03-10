@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
@@ -30,13 +31,14 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions.InbuiltPreconditions
                     }
                     else
                     {
-                        if (taskDefinitionStates.Count > 1)
+                        var targetDefinitionStates = taskDefinitionStates.Where(a => EqualityComparer<TIdentifier>.Default.Equals(a.TaskDefinitionId, taskDefinition.Id)).ToImmutableList();
+                        if (targetDefinitionStates.Count > 1)
                         {
                             throw new Exception($"Expected only one task definition state for task definition with id '{taskDefinition.Id}'");
                         }
                         else
                         {
-                            return taskDefinitionStates.Single().Disabled == false;
+                            return targetDefinitionStates.Single().Disabled == false;
                         }
                     }
                 }

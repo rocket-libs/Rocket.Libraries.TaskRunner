@@ -55,7 +55,7 @@ namespace Rocket.Libraries.TaskRunner.OnDemandQueuing
                 }
                 else
                 {
-                    OnDemandQueue.Add(taskDefinitionId);
+                    onDemandQueue = onDemandQueue.Add(taskDefinitionId);
                 }
             }
         }
