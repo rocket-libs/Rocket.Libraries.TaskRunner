@@ -10,5 +10,7 @@ namespace Rocket.Libraries.TaskRunnerTests.Schedules
         public T TaskDefinitionId { get; set; }
 
         public T Id { get; set; }
+
+        public bool IsOnDemand { get; set; }
     }
 }

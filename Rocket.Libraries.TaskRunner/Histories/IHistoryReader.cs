@@ -1,8 +1,6 @@
-﻿using Rocket.Libraries.TaskRunner.TaskDefinitions;
-
-namespace Rocket.Libraries.TaskRunner.Histories
+﻿namespace Rocket.Libraries.TaskRunner.Histories
 {
-    public interface IHistoryReader<TIdentifier> : IInstantiator<IHistory<TIdentifier>>, IScopedServiceAccessor
+    public interface IHistoryReader<TIdentifier> : IInstantiator<IHistory<TIdentifier>>
     {
     }
 }

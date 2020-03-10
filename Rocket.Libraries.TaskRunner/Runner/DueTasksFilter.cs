@@ -24,11 +24,18 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
             Func<ITaskDefinition<TIdentifier>, ISchedule<TIdentifier>, bool> taskIsDue = (taskDefinition, schedule) =>
             {
-                var taskHasNeverBeenRun = schedule.LastRun == default;
-                var timespanIsNegative = taskDefinition.Interval < TimeSpan.FromMilliseconds(0);
-                var dueAt = (timespanIsNegative && taskHasNeverBeenRun) ? default : schedule.LastRun.Add(taskDefinition.Interval);
-                var isDue = dueAt <= referenceTime;
-                return isDue;
+                if (schedule.IsOnDemand)
+                {
+                    return true;
+                }
+                else
+                {
+                    var taskHasNeverBeenRun = schedule.LastRun == default;
+                    var timespanIsNegative = taskDefinition.Interval < TimeSpan.FromMilliseconds(0);
+                    var dueAt = (timespanIsNegative && taskHasNeverBeenRun) ? default : schedule.LastRun.Add(taskDefinition.Interval);
+                    var isDue = dueAt <= referenceTime;
+                    return isDue;
+                }
             };
 
             foreach (var singleTaskDefinition in candidateTasks)

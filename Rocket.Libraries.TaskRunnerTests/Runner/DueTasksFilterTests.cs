@@ -82,5 +82,39 @@ namespace Rocket.Libraries.TaskRunnerTests.Runner
             var wasQueued = result.Count > 0;
             Assert.Equal(expectedToBeQueued, wasQueued);
         }
+
+        [Theory]
+        [InlineData(true, true)]
+        [InlineData(false, false)]
+        public void OnDemandFlagIsRespected(bool isOnDemand, bool expectedToBeQueued)
+        {
+            const int taskDefinitionId = 1;
+            const int intervalMilliseconds = 1000 * 60;
+            var datetimeProvider = new Mock<IDateTimeProvider>();
+
+            datetimeProvider.Setup(a => a.Now)
+                .Returns(DateTime.Now);
+
+            var candidateTasks = ImmutableList<ITaskDefinition<long>>.Empty
+                .Add(new TaskDefinition<long>
+                {
+                    Interval = TimeSpan.FromMilliseconds(intervalMilliseconds),
+                    Id = taskDefinitionId
+                });
+
+            var schedules = ImmutableList<ISchedule<long>>.Empty
+                .Add(new Schedule<long>
+                {
+                    LastRun = datetimeProvider.Object.Now,
+                    TaskDefinitionId = taskDefinitionId,
+                    IsOnDemand = isOnDemand
+                });
+
+            var dueTasksFilter = new DueTasksFilter<long>(datetimeProvider.Object);
+            var result = dueTasksFilter.GetWithOnlyDueTasks(candidateTasks, schedules);
+
+            var wasQueued = result.Count > 0;
+            Assert.Equal(expectedToBeQueued, wasQueued);
+        }
     }
 }

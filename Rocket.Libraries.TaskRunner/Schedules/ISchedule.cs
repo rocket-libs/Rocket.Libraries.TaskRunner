@@ -7,5 +7,7 @@ namespace Rocket.Libraries.TaskRunner.Schedules
         DateTime LastRun { get; set; }
 
         TIdentifier TaskDefinitionId { get; set; }
+
+        bool IsOnDemand { get; set; }
     }
 }
