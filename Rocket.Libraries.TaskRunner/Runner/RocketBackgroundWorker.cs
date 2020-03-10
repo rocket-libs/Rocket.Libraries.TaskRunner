@@ -4,8 +4,12 @@ using Polly;
 using Polly.CircuitBreaker;
 using Rocket.Libraries.TaskRunner.Configuration;
 using Rocket.Libraries.TaskRunner.OnDemandQueuing;
+using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.ServiceDetails;
+using Rocket.Libraries.TaskRunner.TaskDefinitions;
 using System;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,14 +25,20 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private readonly IOnDemandQueueManager<TIdentifier> onDemandQueueManager;
 
+        private readonly IFaultReporter<TIdentifier> faultReporter;
+
+        private readonly ITaskDefinitionReader<TIdentifier> taskDefinitionReader;
+
         private Timer timer;
 
         public RocketBackgroundWorker(
             IServiceScopeFactory serviceScopeFactory,
-            IOnDemandQueueManager<TIdentifier> onDemandQueueManager)
+            IOnDemandQueueManager<TIdentifier> onDemandQueueManager,
+            IFaultReporter<TIdentifier> faultReporter)
         {
             this.serviceScopeFactory = serviceScopeFactory;
             this.onDemandQueueManager = onDemandQueueManager;
+            this.faultReporter = faultReporter;
         }
 
         public override void Dispose()
@@ -54,6 +64,16 @@ namespace Rocket.Libraries.TaskRunner.Runner
                     InitializePollyIfRequired(scope);
                     await circuitBreaker.ExecuteAsync(async () => await RunInCircuitAsync(scope));
                 }
+            }
+            catch (TaskExecutionFaultException<TIdentifier> criticalException)
+            {
+                var taskDefinition = criticalException.TaskDefinition;
+                if (taskDefinition == null)
+                {
+                    var candidates = await taskDefinitionReader.GetByIdsAsync(ImmutableList<TIdentifier>.Empty.Add(criticalException.TaskDefinitionId));
+                    taskDefinition = candidates.Single();
+                }
+                await faultReporter.ReportAsync(taskDefinition, criticalException.InnerException, false);
             }
             catch { }
             finally

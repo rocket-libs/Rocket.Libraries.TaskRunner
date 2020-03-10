@@ -6,7 +6,7 @@ namespace Rocket.Libraries.TaskRunner.Performance.FaultHandling
 {
     public interface IFaultReporter<TIdentifier>
     {
-        Task ReportAsync(ITaskDefinition<TIdentifier> taskDefinition, Exception exception);
+        Task ReportAsync(ITaskDefinition<TIdentifier> taskDefinition, Exception exception, bool handled);
 
         Task ReportShutdownAsync(Exception exception);
     }

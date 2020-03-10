@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates;
 using Rocket.Libraries.TaskRunner.TaskDefinitions;
 
@@ -16,7 +17,7 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions.InbuiltPreconditions
 
         public override string DisplayLabel { get; set; }
 
-        internal static TaskIsNotDisabled<TIdentifier> GetInstance(ImmutableList<ITaskDefinitionState<TIdentifier>> taskDefinitionStates)
+        public static TaskIsNotDisabled<TIdentifier> GetInstance(ImmutableList<ITaskDefinitionState<TIdentifier>> taskDefinitionStates)
         {
             return new TaskIsNotDisabled<TIdentifier>
             {
@@ -34,7 +35,12 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions.InbuiltPreconditions
                         var targetDefinitionStates = taskDefinitionStates.Where(a => EqualityComparer<TIdentifier>.Default.Equals(a.TaskDefinitionId, taskDefinition.Id)).ToImmutableList();
                         if (targetDefinitionStates.Count > 1)
                         {
-                            throw new Exception($"Expected only one task definition state for task definition with id '{taskDefinition.Id}'");
+                            var innerException = new Exception($"Expected only one task definition state for task definition with id '{taskDefinition.Id}'");
+                            throw new TaskExecutionFaultException<TIdentifier>(taskDefinition, innerException);
+                        }
+                        else if (targetDefinitionStates.Count == 0)
+                        {
+                            return true;
                         }
                         else
                         {
