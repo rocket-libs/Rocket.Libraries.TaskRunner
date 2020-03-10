@@ -30,7 +30,7 @@ namespace Rocket.Libraries.TaskRunner.Performance.FaultHandling
             var taskDefinitionState = await GetTaskDefinitionState(taskDefinition.Id);
             taskDefinitionState.Disabled = true;
             await taskDefinitionStateWriter.WriteAsync(taskDefinitionState);
-            await faultReporter.ReportAsync(taskDefinition, exception);
+            await faultReporter.ReportAsync(taskDefinition, exception, true);
         }
 
         private async Task<ITaskDefinitionState<TIdentifier>> GetTaskDefinitionState(TIdentifier taskDefinitionId)
