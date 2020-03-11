@@ -27,8 +27,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private readonly IFaultReporter<TIdentifier> faultReporter;
 
-        private readonly ITaskDefinitionReader<TIdentifier> taskDefinitionReader;
-
         private Timer timer;
 
         public RocketBackgroundWorker(
@@ -70,8 +68,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
                 var taskDefinition = criticalException.TaskDefinition;
                 if (taskDefinition == null)
                 {
-                    var candidates = await taskDefinitionReader.GetByIdsAsync(ImmutableList<TIdentifier>.Empty.Add(criticalException.TaskDefinitionId));
-                    taskDefinition = candidates.Single();
+                    throw criticalException;
                 }
                 await faultReporter.ReportAsync(taskDefinition, criticalException.InnerException, false);
             }
