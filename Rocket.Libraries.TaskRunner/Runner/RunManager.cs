@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Rocket.Libraries.TaskRunner.Histories;
+using Rocket.Libraries.TaskRunner.Logging;
 using Rocket.Libraries.TaskRunner.OnDemandQueuing;
 using Rocket.Libraries.TaskRunner.Performance.FaultHandling;
 using Rocket.Libraries.TaskRunner.Performance.TaskDefinitionStates;
@@ -50,6 +51,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
         private readonly IOnDemandQueueManager<TIdentifier> onDemandQueueManager;
 
+        private readonly ITaskRunnerLogger taskRunnerLogger;
+
         public ILogger<RunManager<TIdentifier>> Logger { get; }
 
         public RunManager(
@@ -68,7 +71,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
             ITaskDefinitionStateWriter<TIdentifier> taskDefinitionStateWriter,
             IFaultHandler<TIdentifier> faultHandler,
             IFaultReporter<TIdentifier> faultReporter,
-            IOnDemandQueueManager<TIdentifier> onDemandQueueManager)
+            IOnDemandQueueManager<TIdentifier> onDemandQueueManager,
+            ITaskRunnerLogger taskRunnerLogger)
         {
             this.scheduleReader = scheduleReader;
             this.taskDefinitionReader = taskDefinitionReader;
@@ -86,21 +90,27 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.faultHandler = faultHandler;
             this.faultReporter = faultReporter;
             this.onDemandQueueManager = onDemandQueueManager;
+            this.taskRunnerLogger = taskRunnerLogger;
         }
 
         public async Task RunAsync()
         {
             try
             {
+                taskRunnerLogger.LogInformation("Starting run");
                 await OnRunStartAsync();
                 var schedules = await GetSchedulesAsync();
+                taskRunnerLogger.LogInformation($"Found {schedules.Count} schedules");
                 var candidateTasks = await GetCandidateTasks(schedules);
+                taskRunnerLogger.LogInformation($"Found {candidateTasks.Count} tasks total");
                 var dueTasks = GetWithOnlyDueTasks(candidateTasks, schedules);
+                taskRunnerLogger.LogInformation($"Found {dueTasks.Count} due tasks");
                 var result = await RunDueTasks(dueTasks, schedules);
                 await OnRunCompletedAsync(true, result, null);
             }
             catch (Exception e)
             {
+                taskRunnerLogger.LogException(e);
                 await OnRunCompletedAsync(false, null, e);
                 throw;
             }
@@ -116,6 +126,15 @@ namespace Rocket.Libraries.TaskRunner.Runner
             _ = succeeded;
             _ = sessionRunResult;
             _ = exception;
+            if (succeeded)
+            {
+                taskRunnerLogger.LogInformation($"Run completed without exception.");
+            }
+            else
+            {
+                taskRunnerLogger.LogError($"Error(s) occured during run");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -123,7 +142,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
         {
             using (runner)
             {
-                using (var preconditionEvaluator = new PreconditionEvaluator<TIdentifier>())
+                using (var preconditionEvaluator = new PreconditionEvaluator<TIdentifier>(taskRunnerLogger))
                 {
                     var taskDefinitionStates = await taskDefinitionStateReader.GetByTaskDefinitionIds(candidateTasks.Select(a => a.Id).ToImmutableList());
                     var sessionRunResult = new SessionRunResult<TIdentifier>();
