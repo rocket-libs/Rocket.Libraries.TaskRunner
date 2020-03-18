@@ -1,4 +1,6 @@
-﻿using Rocket.Libraries.TaskRunner.TaskPreconditions;
+﻿using Moq;
+using Rocket.Libraries.TaskRunner.Logging;
+using Rocket.Libraries.TaskRunner.TaskPreconditions;
 using Rocket.Libraries.TaskRunnerTests.TaskDefinitions;
 using System;
 using System.Collections.Immutable;
@@ -14,6 +16,7 @@ namespace Rocket.Libraries.TaskRunnerTests.PreConditions
         [InlineData(true, true)]
         public async Task PreConditionsFilterCorrectly(bool preconditionResult, bool errorMessageShouldBeEmpty)
         {
+            var taskRunnerLogger = new Mock<ITaskRunnerLogger>();
             const string taskName = "TaskName";
 
             var taskDefinition = new TaskDefinition<Guid>
@@ -29,7 +32,7 @@ namespace Rocket.Libraries.TaskRunnerTests.PreConditions
                 TaskName = taskName,
             });
 
-            var preconditionEvaluator = new PreconditionEvaluator<Guid>();
+            var preconditionEvaluator = new PreconditionEvaluator<Guid>(taskRunnerLogger.Object);
             var result = await preconditionEvaluator.GetFailingPrecondition(taskDefinition, preconditions);
             var errorMessageIsEmpty = string.IsNullOrEmpty(result);
             Assert.Equal(errorMessageShouldBeEmpty, errorMessageIsEmpty);

@@ -13,5 +13,7 @@ namespace Rocket.Libraries.TaskRunner.Histories
         string Status { get; set; }
 
         string Remarks { get; set; }
+
+        Guid RunId { get; set; }
     }
 }

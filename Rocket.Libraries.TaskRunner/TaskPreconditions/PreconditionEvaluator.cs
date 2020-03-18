@@ -1,4 +1,5 @@
-﻿using Rocket.Libraries.TaskRunner.TaskDefinitions;
+﻿using Rocket.Libraries.TaskRunner.Logging;
+using Rocket.Libraries.TaskRunner.TaskDefinitions;
 using System;
 using System.Collections.Immutable;
 using System.Linq;
@@ -8,6 +9,13 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions
 {
     public class PreconditionEvaluator<TIdentifier> : IDisposable
     {
+        private readonly ITaskRunnerLogger taskRunnerLogger;
+
+        public PreconditionEvaluator(ITaskRunnerLogger taskRunnerLogger)
+        {
+            this.taskRunnerLogger = taskRunnerLogger;
+        }
+
         public void Dispose()
         {
         }
@@ -16,10 +24,12 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions
         {
             if (preconditions == null || preconditions.Count == 0)
             {
+                taskRunnerLogger.LogInformation($"Found no preconditions for task '{taskDefinition.Name}'");
                 return string.Empty;
             }
             else
             {
+                taskRunnerLogger.LogInformation($"Found {preconditions.Count} preconditions for task '{taskDefinition.Name}'");
                 return await GetEvaluationResult(taskDefinition, preconditions);
             }
         }
@@ -44,6 +54,7 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions
             foreach (var singlePrecondition in taskPreconditions)
             {
                 var passed = await singlePrecondition.PassesAsync(taskDefinition);
+                taskRunnerLogger.LogInformation($"Precondition '{singlePrecondition.DisplayLabel}' of task '{taskDefinition.Name}' {(passed ? "passed" : "failed")}");
                 if (!passed)
                 {
                     return singlePrecondition.DisplayLabel;
