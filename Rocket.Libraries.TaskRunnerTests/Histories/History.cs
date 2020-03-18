@@ -16,5 +16,7 @@ namespace Rocket.Libraries.TaskRunnerTests.Histories
         public string Remarks { get; set; }
 
         public T Id { get; set; }
+
+        public Guid RunId { get; set; }
     }
 }

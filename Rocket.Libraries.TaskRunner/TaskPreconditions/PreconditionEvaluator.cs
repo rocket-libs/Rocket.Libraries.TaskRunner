@@ -29,7 +29,7 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions
             }
             else
             {
-                taskRunnerLogger.LogInformation($"Found no {preconditions.Count} preconditions for task '{taskDefinition.Name}'");
+                taskRunnerLogger.LogInformation($"Found {preconditions.Count} preconditions for task '{taskDefinition.Name}'");
                 return await GetEvaluationResult(taskDefinition, preconditions);
             }
         }

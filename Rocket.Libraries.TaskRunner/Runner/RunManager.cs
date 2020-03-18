@@ -97,6 +97,8 @@ namespace Rocket.Libraries.TaskRunner.Runner
         {
             try
             {
+                var runId = Guid.NewGuid();
+                taskRunnerLogger.RunId = runId;
                 taskRunnerLogger.LogInformation("Starting run");
                 await OnRunStartAsync();
                 var schedules = await GetSchedulesAsync();
@@ -105,7 +107,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
                 taskRunnerLogger.LogInformation($"Found {candidateTasks.Count} tasks total");
                 var dueTasks = GetWithOnlyDueTasks(candidateTasks, schedules);
                 taskRunnerLogger.LogInformation($"Found {dueTasks.Count} due tasks");
-                var result = await RunDueTasks(dueTasks, schedules);
+                var result = await RunDueTasks(dueTasks, schedules, runId);
                 await OnRunCompletedAsync(true, result, null);
             }
             catch (Exception e)
@@ -138,7 +140,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
             return Task.CompletedTask;
         }
 
-        private async Task<SessionRunResult<TIdentifier>> RunDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
+        private async Task<SessionRunResult<TIdentifier>> RunDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules, Guid runId)
         {
             using (runner)
             {
@@ -152,7 +154,7 @@ namespace Rocket.Libraries.TaskRunner.Runner
                     foreach (var singleTaskDefinition in candidateTasks)
                     {
                         var startTime = DateTime.Now;
-                        await RunSingleTask(singleTaskDefinition, preconditionEvaluator, schedules, preconditions, sessionRunResult, startTime);
+                        await RunSingleTask(singleTaskDefinition, preconditionEvaluator, schedules, preconditions, sessionRunResult, startTime, runId);
                     }
 
                     await historyWriter.WriteAsync(sessionRunResult.Histories);
@@ -162,12 +164,13 @@ namespace Rocket.Libraries.TaskRunner.Runner
             }
         }
 
-        private async Task RunSingleTask(ITaskDefinition<TIdentifier> singleTaskDefinition, PreconditionEvaluator<TIdentifier> preconditionEvaluator, ImmutableList<ISchedule<TIdentifier>> schedules, ImmutableList<TaskPrecondition<TIdentifier>> preconditions, SessionRunResult<TIdentifier> sessionRunResult, DateTime startTime)
+        private async Task RunSingleTask(ITaskDefinition<TIdentifier> singleTaskDefinition, PreconditionEvaluator<TIdentifier> preconditionEvaluator, ImmutableList<ISchedule<TIdentifier>> schedules, ImmutableList<TaskPrecondition<TIdentifier>> preconditions, SessionRunResult<TIdentifier> sessionRunResult, DateTime startTime, Guid runId)
         {
             var taskSchedule = schedules.Single(candidateSchedule => EqualityComparer<TIdentifier>.Default.Equals(candidateSchedule.TaskDefinitionId, singleTaskDefinition.Id));
             var history = historyReader.GetNew();
             history.StartTime = startTime;
             history.TaskDefinitionId = singleTaskDefinition.Id;
+            history.RunId = runId;
             var runResult = default(SingleTaskRunResult);
 
             var failingPrecondition = await preconditionEvaluator.GetFailingPrecondition(singleTaskDefinition, preconditions);

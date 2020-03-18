@@ -6,6 +6,8 @@ namespace Rocket.Libraries.TaskRunner.Logging
 {
     public interface ITaskRunnerLogger
     {
+        Guid RunId { get; set; }
+
         void LogInformation(string message);
 
         void LogError(string message);
