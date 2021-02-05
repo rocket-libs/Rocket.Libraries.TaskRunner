@@ -22,15 +22,20 @@ namespace Rocket.Libraries.TaskRunner.TaskPreconditions
 
         public async Task<string> GetFailingPrecondition(ITaskDefinition<TIdentifier> taskDefinition, ImmutableList<TaskPrecondition<TIdentifier>> preconditions)
         {
-            if (preconditions == null || preconditions.Count == 0)
+            var taskPreconditions = preconditions.Where(a => a.TaskName.Equals(taskDefinition.Name, StringComparison.InvariantCulture)).ToImmutableList();
+            if (taskPreconditions == null || taskPreconditions.Count == 0)
             {
                 taskRunnerLogger.LogInformation($"Found no preconditions for task '{taskDefinition.Name}'");
                 return string.Empty;
             }
             else
             {
-                taskRunnerLogger.LogInformation($"Found {preconditions.Count} preconditions for task '{taskDefinition.Name}'");
-                return await GetEvaluationResult(taskDefinition, preconditions);
+                if (taskDefinition.OnBeforePreconditionEvaluation != null)
+                {
+                    taskPreconditions = taskDefinition.OnBeforePreconditionEvaluation(taskPreconditions);
+                }
+                taskRunnerLogger.LogInformation($"Found {taskPreconditions.Count} preconditions for task '{taskDefinition.Name}'");
+                return await GetEvaluationResult(taskDefinition, taskPreconditions);
             }
         }
 

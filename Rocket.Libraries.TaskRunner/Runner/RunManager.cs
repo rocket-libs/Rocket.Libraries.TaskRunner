@@ -21,39 +21,37 @@ namespace Rocket.Libraries.TaskRunner.Runner
     {
         private static SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1);
 
-        private readonly IScheduleReader<TIdentifier> scheduleReader;
-
-        private readonly ITaskDefinitionReader<TIdentifier> taskDefinitionReader;
-
-        private readonly IRunner<TIdentifier> runner;
-
-        private readonly IHistoryWriter<TIdentifier> historyWriter;
-
-        private readonly IScheduleWriter<TIdentifier> scheduleWriter;
-
-        private readonly IPreconditionReader<TIdentifier> preconditionReader;
-
         private readonly IDueTasksFilter<TIdentifier> dueTasksFilter;
-
-        private readonly IHistoryReader<TIdentifier> historyReader;
-
-        private readonly IServiceScopeFactory serviceScopeFactory;
-
-        private readonly IInbuiltTaskPreconditionsProvider<TIdentifier> inbuiltTaskPreconditionsProvider;
-
-        private readonly ITaskDefinitionStateReader<TIdentifier> taskDefinitionStateReader;
-
-        private readonly ITaskDefinitionStateWriter<TIdentifier> taskDefinitionStateWriter;
 
         private readonly IFaultHandler<TIdentifier> faultHandler;
 
         private readonly IFaultReporter<TIdentifier> faultReporter;
 
+        private readonly IHistoryReader<TIdentifier> historyReader;
+
+        private readonly IHistoryWriter<TIdentifier> historyWriter;
+
+        private readonly IInbuiltTaskPreconditionsProvider<TIdentifier> inbuiltTaskPreconditionsProvider;
+
         private readonly IOnDemandQueueManager<TIdentifier> onDemandQueueManager;
 
-        private readonly ITaskRunnerLogger taskRunnerLogger;
+        private readonly IPreconditionReader<TIdentifier> preconditionReader;
 
-        public ILogger<RunManager<TIdentifier>> Logger { get; }
+        private readonly IRunner<TIdentifier> runner;
+
+        private readonly IScheduleReader<TIdentifier> scheduleReader;
+
+        private readonly IScheduleWriter<TIdentifier> scheduleWriter;
+
+        private readonly IServiceScopeFactory serviceScopeFactory;
+
+        private readonly ITaskDefinitionReader<TIdentifier> taskDefinitionReader;
+
+        private readonly ITaskDefinitionStateReader<TIdentifier> taskDefinitionStateReader;
+
+        private readonly ITaskDefinitionStateWriter<TIdentifier> taskDefinitionStateWriter;
+
+        private readonly ITaskRunnerLogger taskRunnerLogger;
 
         public RunManager(
             IScheduleReader<TIdentifier> scheduleReader,
@@ -93,6 +91,34 @@ namespace Rocket.Libraries.TaskRunner.Runner
             this.taskRunnerLogger = taskRunnerLogger;
         }
 
+        public ILogger<RunManager<TIdentifier>> Logger { get; }
+
+        public void Dispose()
+        {
+        }
+
+        public virtual Task OnRunCompletedAsync(bool succeeded, SessionRunResult<TIdentifier> sessionRunResult, Exception exception)
+        {
+            _ = succeeded;
+            _ = sessionRunResult;
+            _ = exception;
+            if (succeeded)
+            {
+                taskRunnerLogger.LogInformation($"Run completed without exception.");
+            }
+            else
+            {
+                taskRunnerLogger.LogError($"Error(s) occured during run");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public virtual Task OnRunStartAsync()
+        {
+            return Task.CompletedTask;
+        }
+
         public async Task RunAsync()
         {
             try
@@ -118,26 +144,39 @@ namespace Rocket.Libraries.TaskRunner.Runner
             }
         }
 
-        public virtual Task OnRunStartAsync()
+        private async Task<ImmutableList<ITaskDefinition<TIdentifier>>> GetCandidateTasks(ImmutableList<ISchedule<TIdentifier>> schedules)
         {
-            return Task.CompletedTask;
-        }
-
-        public virtual Task OnRunCompletedAsync(bool succeeded, SessionRunResult<TIdentifier> sessionRunResult, Exception exception)
-        {
-            _ = succeeded;
-            _ = sessionRunResult;
-            _ = exception;
-            if (succeeded)
+            var noScheduledTasks = schedules == null || schedules.Count == 0;
+            if (noScheduledTasks)
             {
-                taskRunnerLogger.LogInformation($"Run completed without exception.");
+                return null;
             }
             else
             {
-                taskRunnerLogger.LogError($"Error(s) occured during run");
+                var ids = schedules.Select(singleSchedule => singleSchedule.TaskDefinitionId).ToImmutableList();
+                using (taskDefinitionReader)
+                {
+                    return await taskDefinitionReader.GetByIdsAsync(ids);
+                }
             }
+        }
 
-            return Task.CompletedTask;
+        private async Task<ImmutableList<ISchedule<TIdentifier>>> GetSchedulesAsync()
+        {
+            using (scheduleReader)
+            {
+                var queuedTaskDefinitionIds = onDemandQueueManager.Queued; // This caching is important so we are sure we work with the same set of task definition ids within this scope.
+                var schedules = await scheduleReader.GetAllAsync(queuedTaskDefinitionIds);
+                return onDemandQueueManager.GetOnDemandSchedulesFlagged(schedules, queuedTaskDefinitionIds);
+            }
+        }
+
+        private ImmutableList<ITaskDefinition<TIdentifier>> GetWithOnlyDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
+        {
+            using (dueTasksFilter)
+            {
+                return dueTasksFilter.GetWithOnlyDueTasks(candidateTasks, schedules);
+            }
         }
 
         private async Task<SessionRunResult<TIdentifier>> RunDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules, Guid runId)
@@ -151,6 +190,9 @@ namespace Rocket.Libraries.TaskRunner.Runner
                     var preconditions = await preconditionReader.GetByTaskNameAsync(candidateTasks.Select(a => a.Name).ToImmutableList());
                     var inBuiltPreconditions = inbuiltTaskPreconditionsProvider.GetInBuiltPreconditions(candidateTasks, taskDefinitionStates);
                     preconditions = preconditions.AddRange(inBuiltPreconditions);
+                    preconditions = preconditions.GroupBy(a => new { t = a.GetType(), n = a.TaskName })
+                        .Select(a => a.First())
+                        .ToImmutableList();
                     foreach (var singleTaskDefinition in candidateTasks)
                     {
                         var startTime = DateTime.Now;
@@ -210,45 +252,6 @@ namespace Rocket.Libraries.TaskRunner.Runner
 
             sessionRunResult.Histories = sessionRunResult.Histories.Add(history);
             sessionRunResult.Schedules = sessionRunResult.Schedules.Add(taskSchedule);
-        }
-
-        private async Task<ImmutableList<ISchedule<TIdentifier>>> GetSchedulesAsync()
-        {
-            using (scheduleReader)
-            {
-                var queuedTaskDefinitionIds = onDemandQueueManager.Queued; // This caching is important so we are sure we work with the same set of task definition ids within this scope.
-                var schedules = await scheduleReader.GetAllAsync(queuedTaskDefinitionIds);
-                return onDemandQueueManager.GetOnDemandSchedulesFlagged(schedules, queuedTaskDefinitionIds);
-            }
-        }
-
-        private async Task<ImmutableList<ITaskDefinition<TIdentifier>>> GetCandidateTasks(ImmutableList<ISchedule<TIdentifier>> schedules)
-        {
-            var noScheduledTasks = schedules == null || schedules.Count == 0;
-            if (noScheduledTasks)
-            {
-                return null;
-            }
-            else
-            {
-                var ids = schedules.Select(singleSchedule => singleSchedule.TaskDefinitionId).ToImmutableList();
-                using (taskDefinitionReader)
-                {
-                    return await taskDefinitionReader.GetByIdsAsync(ids);
-                }
-            }
-        }
-
-        private ImmutableList<ITaskDefinition<TIdentifier>> GetWithOnlyDueTasks(ImmutableList<ITaskDefinition<TIdentifier>> candidateTasks, ImmutableList<ISchedule<TIdentifier>> schedules)
-        {
-            using (dueTasksFilter)
-            {
-                return dueTasksFilter.GetWithOnlyDueTasks(candidateTasks, schedules);
-            }
-        }
-
-        public void Dispose()
-        {
         }
     }
 }
